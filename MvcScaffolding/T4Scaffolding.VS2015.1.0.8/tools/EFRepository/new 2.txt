@@ -1,0 +1,34 @@
+<#@ template language="C#" HostSpecific="True"  inherits="DynamicTransform" #>
+<#@ assembly name="System.Data.Entity" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="EnvDTE" #>
+<#@ Output Extension="cs" #>
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.Entity;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Web;
+using App.Core.Models;
+
+namespace App.Core.Interfaces
+{ 
+<# 
+    var modelType = (CodeType)Model.ModelType; 
+    var modelName = modelType.Name; 
+    var modelNamePlural = Model.ModelTypePluralized; 
+    var contextName = ((CodeType)Model.DbContextType).Name; 
+    var primaryKeyProperty = modelType.VisibleMembers().OfType<CodeProperty>().Single(x => x.Name == Model.PrimaryKey);
+    var isObjectContext = ((CodeType)Model.DbContextType).IsAssignableTo<System.Data.Objects.ObjectContext>();
+#>
+    public interface I<#= modelName #>Repository : IDisposable
+    {
+        IQueryable<<#= modelName #>> All { get; }
+        IQueryable<<#= modelName #>> AllIncluding(params Expression<Func<<#= modelName #>, object>>[] includeProperties);
+        <#= modelName #> Find(<#= primaryKeyProperty.Type.AsString #> id);
+        void InsertOrUpdate(<#= modelName #> <#= modelName.ToLower() #>);
+        void Delete(<#= primaryKeyProperty.Type.AsString #> id);
+        void Save();
+    }
+}

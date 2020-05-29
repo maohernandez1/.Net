@@ -1,0 +1,233 @@
+﻿<#@ Template Language="C#" HostSpecific="True" Inherits="DynamicTransform" #>
+<#@ Output extension="cshtml" #>
+<#@ assembly name="System.ComponentModel.DataAnnotations" #>
+<#@ assembly name="System.Core" #>
+<#@ assembly name="System.Data.Entity" #>
+<#@ assembly name="System.Data.Linq" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.Collections" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System.ComponentModel.DataAnnotations" #>
+<#@ import namespace="System.Data.Linq.Mapping" #>
+<#@ import namespace="System.Data.Objects.DataClasses" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Reflection" #>
+<# var viewDataType = (EnvDTE.CodeType) Model.ViewDataType; #>
+<# if(viewDataType != null) { #>
+@model IEnumerable<<#= viewDataType.FullName #>>
+
+<# } #>
+@{
+    //ViewBag.Title = "<#= Model.ViewName #>";
+<# if (!String.IsNullOrEmpty(Model.Layout)) { #>
+    Layout = "<#= Model.Layout #>";
+<# } #>
+}
+
+<div class="box">
+    <table id="grid-data" class="table table-condensed table-hover table-striped">
+        <thead>
+            <tr>
+<#
+List<ModelProperty> properties = GetModelProperties(Model.ViewDataType, true);
+foreach (ModelProperty property in properties) {
+    if (!property.IsPrimaryKey && !property.IsForeignKey) {
+		if(property.Type.UnderlyingTypeIs<DateTime>()){
+#>
+				<th data-column-id="<#= property.Name #>" data-converter="datetime"><#= property.Name #></th>
+	<#
+		}
+		else{
+		#>
+					<th data-column-id="<#= property.Name #>">@HttpUtility.HtmlDecode(Html.DisplayNameFor(model => model.<#= property.Name #>).ToHtmlString())</th>
+	<#
+		}
+	}
+}
+#>
+                <th data-column-id="commands" data-formatter="commands" data-sortable="false">Acciones</th>
+            </tr>
+        </thead>
+    </table>
+</div>
+    <script>
+        
+        var grid;
+        $(function () {
+            grid = $("#grid-data").bootgrid({
+                ajax: true,
+                ajaxSettings: {
+                    method: "GET",
+                    cache: false
+                },
+                url: function () {
+                    return rootDir + "<#= viewDataType.Name #>s/GetGrid<#= viewDataType.Name #>";
+                },
+                labels: {
+                    all: "Todo",
+                    infos: "Mostrando {{ctx.start}} a {{ctx.end}} de {{ctx.total}}  registros",
+                    loading: "Cargando...",
+                    noResults: "No se encontraron registros!",
+                    refresh: "Refrescar",
+                    search: "Buscar"
+                },
+                formatters: {
+                    "commands": function (column, row) {
+                        return "<div class=\"btn-group\">" +
+                        "<button data-toggle=\"tooltip\" data-toggle=\"modal\" title=\"editar\" class=\"btn btn-primary command-edit\" type=\"button\" data-row-id=\"" + row.Id + "\">" +
+                            "<i class=\"fa fa fa-edit\"></i>" +
+                            "</button>" +
+                            "<button data-toggle=\"tooltip\" title=\"borrar\" class=\"btn btn-primary command-delete\" type=\"button\" data-row-id=\"" + row.Id + "\">" +
+                            "<i class=\"fa fa-eraser \"></i>" +
+                        "</button>" +
+                        "<div class=\"btn-group\">" +
+                        "</div>";
+                    }
+                },
+                converters: {
+                    datetime: {
+                        from: function (value) { return moment(value); },
+                        to: function (value) { return moment(value).format("ll"); }
+                    }
+                }
+            }).on("loaded.rs.jquery.bootgrid", function () {
+                $('[data-toggle="tooltip"]').tooltip();
+                grid.find(".command-edit").on("click", function (e) {
+                    var Id = $(this).data("row-id");
+                    getCreateView(rootDir + "<#= viewDataType.Name #>s/edit", { "id": Id }, "get", "Editar <#= viewDataType.Name #>");
+                }).end().find(".command-delete").on("click", function (e) {
+                    var id = $(this).data("row-id");
+
+                    swal({
+                        title: "Esta seguro?",
+                        text: "El registro sera eliminado.",
+                        type: "warning",
+                        showCancelButton: true,
+                        confirmButtonClass: "btn-danger",
+                        confirmButtonText: "Si",
+                        cancelButtonText: "Cancelar",
+                        closeOnConfirm: false,
+                        showLoaderOnConfirm: true
+                    },
+                        function () {
+                            $.post("<#= viewDataType.Name #>/delete", { "id": id }, function (data) {
+                                if (data.id === 0)
+                                {
+                                    swal("Eliminado", data.mensaje, "success");
+                                    grid.bootgrid("reload");
+                                }
+                                else
+                                {
+                                    swal("Error", data.mensaje, "error");
+                                }
+                                
+                            });
+
+                        });
+                }).end().find(".command-export").on("click", function (e) {
+                    alert("You pressed export on row: " + $(this).data("row-id"));
+                });
+            });
+            $(".actionBar").append("<div class=\"col-xs-3 box-header header-bootgrid\" style=\"text-align: left!important;\">"+
+                "<h3 class=\"box-title\">Lista de <#= viewDataType.Name #></h3>"+
+                "</div>"+
+                "<div class=\"col-md-3\"><button href=\"#responsive\" onclick=\"getCreateView('<#= viewDataType.Name #>s/create/', null, 'get', 'Registrar <#= viewDataType.Name #>');\" style=\"float:left\" class=\"header-bootgrid btn btn-block btn-primary btn-flat \">"+
+                "<i style=\"padding:5px;\" class=\"fa fa fa-plus\">"+
+                "</i>Registrar <#= viewDataType.Name #></button>"+
+                "</div>");
+        });
+        function getCreateView(ruta, parametros, metodo, nombre_accion)
+        {
+            ajaxPartialView(ruta, parametros, metodo, function (view) {
+                $(".modal-header").css("background-color", "#337ab7");
+                $(".modal-title").html("<span class=\"fa fa-save\" style=\"color:white; font-size:1em; padding-right: 5px;\"></span>" + nombre_accion).css("color", "white");
+                $(".modal-body").html(view);
+                $(".modal").modal("show");
+            });
+        }
+    </script>
+<#+
+// Describes the information about a property on the model
+class ModelProperty {
+    public string Name { get; set; }
+    public string ValueExpression { get; set; }
+	public EnvDTE.CodeTypeRef Type { get; set; }
+    public bool IsPrimaryKey { get; set; }
+	public bool IsForeignKey { get; set; }
+	public bool IsReadOnly { get; set; }
+}
+
+// Change this list to include any non-primitive types you think should be eligible to be edited using a textbox
+static Type[] bindableNonPrimitiveTypes = new[] {
+    typeof(string),
+    typeof(decimal),
+    typeof(Guid),
+    typeof(DateTime),
+    typeof(DateTimeOffset),
+    typeof(TimeSpan),
+};
+
+// Call this to get the list of properties in the model. Change this to modify or add your
+// own default formatting for display values.
+List<ModelProperty> GetModelProperties(EnvDTE.CodeType typeInfo, bool includeUnbindableProperties) {
+    List<ModelProperty> results = GetEligibleProperties(typeInfo, includeUnbindableProperties);
+    
+    foreach (ModelProperty prop in results) {
+        if (prop.Type.UnderlyingTypeIs<double>() || prop.Type.UnderlyingTypeIs<decimal>()) {
+            prop.ValueExpression = "String.Format(\"{0:F}\", " + prop.ValueExpression + ")";
+        }
+        else if (prop.Type.UnderlyingTypeIs<DateTime>()) {
+            prop.ValueExpression = "String.Format(\"{0:g}\", " + prop.ValueExpression + ")";
+        }
+		else if (!IsBindableType(prop.Type)) {
+			prop.ValueExpression = GetValueExpression("Model." + prop.Name, (EnvDTE.CodeType)prop.Type.CodeType);
+		}
+    }
+
+    return results;
+}
+
+// Change this list to include the names of properties that should be selected to represent an entity as a single string
+static string[] displayPropertyNames = new[] { "Name", "Title", "LastName", "Surname", "Subject", "Count" };
+
+string GetValueExpression(string propertyExpression, EnvDTE.CodeType propertyType) {
+	if (propertyType != null) {
+		var chosenSubproperty = propertyType.DisplayColumnProperty() ?? propertyType.FindProperty(displayPropertyNames);
+		if (chosenSubproperty != null) {
+			var toStringSuffix = chosenSubproperty.Type.AsFullName == "System.String" ? "" : ".ToString()";
+			return String.Format("({0} == null ? \"None\" : {0}.{1}{2})", propertyExpression, chosenSubproperty.Name, toStringSuffix);
+		}
+	}
+	return "Html.DisplayTextFor(_ => " + propertyExpression + ").ToString()";
+}
+
+// Helper
+List<ModelProperty> GetEligibleProperties(EnvDTE.CodeType typeInfo, bool includeUnbindableProperties) {
+    List<ModelProperty> results = new List<ModelProperty>();
+	if (typeInfo != null) {
+		foreach (var prop in typeInfo.VisibleMembers().OfType<EnvDTE.CodeProperty>()) {
+			if (prop.IsReadable() && !prop.HasIndexParameters() && (includeUnbindableProperties || IsBindableType(prop.Type))) {
+				results.Add(new ModelProperty {
+					Name = prop.Name,
+					ValueExpression = "Model." + prop.Name,
+					Type = prop.Type,
+					IsPrimaryKey = Model.PrimaryKeyName == prop.Name,
+					IsForeignKey = ParentRelations.Any(x => x.RelationProperty == prop),
+					IsReadOnly = !prop.IsWriteable()
+				});
+			}
+		}
+	}
+
+    return results;
+}
+
+IEnumerable<RelatedEntityInfo> ParentRelations {
+	get { return ((IEnumerable)Model.RelatedEntities).OfType<RelatedEntityInfo>().Where(x => x.RelationType == RelationType.Parent); }
+}
+
+// Helper
+bool IsBindableType(EnvDTE.CodeTypeRef type) {
+    return type.UnderlyingIsPrimitive() || bindableNonPrimitiveTypes.Any(x => type.UnderlyingTypeIs(x));
+}
+#>
