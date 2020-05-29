@@ -1,0 +1,1 @@
+﻿<%@ ServiceHost Language="C#" Debug="true" Service="SuperPowerfuls.Services.HeroSvc" Factory="SuperPowerfuls.Services.WcfServiceFactory" %>
